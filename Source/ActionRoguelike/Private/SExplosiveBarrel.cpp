@@ -12,11 +12,11 @@ ASExplosiveBarrel::ASExplosiveBarrel()
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	StaticMeshComp = CreateDefaultSubobject<UStaticMeshComponent>("StaticMeshComp");
+	StaticMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMeshComp"));
 	StaticMeshComp->SetSimulatePhysics(true);
 	RootComponent = StaticMeshComp;
 
-	RadialForceComp = CreateDefaultSubobject<URadialForceComponent>("RadialForceComp");
+	RadialForceComp = CreateDefaultSubobject<URadialForceComponent>(TEXT("RadialForceComp"));
 	RadialForceComp->SetupAttachment(StaticMeshComp);
 
 	RadialForceComp->SetAutoActivate(false);
