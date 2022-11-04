@@ -26,10 +26,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	URadialForceComponent* RadialForceComp;
 
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
+	virtual void PostInitializeComponents() override;
 
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
+	// Must be marked with ufunction in order to 'bind' the event
+	UFUNCTION()
+	void OnActorHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 };
+

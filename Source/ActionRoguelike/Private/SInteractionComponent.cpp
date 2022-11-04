@@ -57,10 +57,12 @@ void USInteractionComponent::PrimaryInteract()
 	FCollisionShape Shape;
 	Shape.SetSphere(Radius);
 
-	bool bBlockingHit = GetWorld()->SweepMultiByObjectType(Hits, EyeLocation, End, FQuat::Identity, ObjectQueryParams, Shape);
+	bool bBlockingHit = GetWorld()->SweepMultiByObjectType(Hits, EyeLocation, End, FQuat::Identity, ObjectQueryParams, Shape); // bBlockingHit is debug data
 
+	/* Debug */
 	FVector DebugEnd;
 	FColor LineColor = bBlockingHit ? FColor::Green : FColor::Red;
+	/* End */
 
 	for (FHitResult Hit : Hits)
 	{

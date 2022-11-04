@@ -17,8 +17,8 @@ ASCharacter::ASCharacter()
 	PrimaryActorTick.bCanEverTick = true;
 
 	SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComp"));
-	SpringArmComp->bUsePawnControlRotation = true;
 	SpringArmComp->SetupAttachment(RootComponent);
+	SpringArmComp->bUsePawnControlRotation = true;
 
 	CameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComp"));
 	CameraComp->SetupAttachment(SpringArmComp);
@@ -100,21 +100,52 @@ void ASCharacter::MoveRight(float Value)
 
 void ASCharacter::PrimaryAttack()
 {
+	// Primary attack animation
 	PlayAnimMontage(AttackAnim);
 
+	// Lets animation play before spawning projectile
 	GetWorldTimerManager().SetTimer(TimerHandle_PrimaryAttack, this, &ASCharacter::PrimaryAttack_TimeElapsed, 0.169);
 }
 
 void ASCharacter::PrimaryAttack_TimeElapsed()
 {
-	
+	// Initializes spawn location from hand socket
 	FVector HandLocation = GetMesh()->GetSocketLocation("Muzzle_01");
-	FTransform SpawnTM = FTransform(GetControlRotation(), HandLocation);
 
+	// Finds intended impact point on camera angle
+	FVector CameraLoc = CameraComp->GetComponentLocation();
+	FVector End = CameraLoc + (CameraComp->GetComponentRotation().Vector() * 50000);
+
+	// Sets what object types hit by line trace
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);		// Should probably make custom channel for these
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
+
+	FHitResult Hit;
+	FTransform SpawnTM;
+	if (GetWorld()->LineTraceSingleByObjectType(Hit, CameraLoc, End, ObjectQueryParams))
+	{
+		// Finds projectile vector based on difference between intended collision & hand location
+		FVector ProjectileVec = Hit.Location - HandLocation;
+		SpawnTM = FTransform(ProjectileVec.Rotation(), HandLocation);
+
+		// DEBUG
+		FString CombinedString = FString::Printf(TEXT("Line Trace: %s"), *Hit.ImpactPoint.ToString());
+		DrawDebugString(GetWorld(), Hit.ImpactPoint, CombinedString, nullptr, FColor::Green, 2.0f, true);
+	}
+	else
+	{
+		SpawnTM = FTransform(GetControlRotation(), HandLocation);
+		DrawDebugString(GetWorld(), HandLocation, TEXT("NO HIT"), nullptr, FColor::Red, 2.0f, true);
+	}
+
+	// Initializes spawn parameters
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	SpawnParams.Instigator = this;
+	SpawnParams.Instigator = this;	// Used in BP to disable collision with this character
 
+	// Spawns projectile
 	GetWorld()->SpawnActor<AActor>(ProjectileClass, SpawnTM, SpawnParams);
 }
 
