@@ -6,10 +6,12 @@
 #include "GameFramework/Character.h"
 #include "SCharacter.generated.h"
 
+
 class UCameraComponent;
 class USpringArmComponent;
 class USInteractionComponent;
 class UAnimMontage;
+class USAttributeComponent;
 
 UCLASS()
 class ACTIONROGUELIKE_API ASCharacter : public ACharacter
@@ -22,40 +24,57 @@ protected:
 	TSubclassOf<AActor> ProjectileClass;
 
 	UPROPERTY(EditAnywhere, Category = "Attack")
+	TSubclassOf<AActor> DashProjectileClass;
+
+	UPROPERTY(EditAnywhere, Category = "Attack")
+	TSubclassOf<AActor> BlackHoleProjectileClass;
+
+	UPROPERTY(EditAnywhere, Category = "Attack")
 	UAnimMontage* AttackAnim;
 
 	FTimerHandle TimerHandle_PrimaryAttack;
+	FTimerHandle TimerHandle_Dash;
+	FTimerHandle TimerHandle_BlackHoleAttack;
 
-public:
-	// Sets default values for this character's properties
-	ASCharacter();
+	UPROPERTY(EditDefaultsOnly, Category = "Attack")
+	float AttackAnimDelay;
 
-protected:
-
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category = "Components")
 	USpringArmComponent* SpringArmComp;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category = "Components")
 	UCameraComponent* CameraComp;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category = "Components")
 	USInteractionComponent* InteractionComp;
 
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	USAttributeComponent* AttributeComp;
+
+	void PrimaryInteract();
 
 	void MoveForward(float Value);
 
 	void MoveRight(float Value);
 
 	void PrimaryAttack();
+
 	void PrimaryAttack_TimeElapsed();
 
-	void PrimaryInteract();
+	void Dash();
 
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
+	void Dash_TimeElapsed();
+
+	void BlackHole();
+
+	void BlackHole_TimeElapsed();
+
+	// Re-use spawn logic
+	void SpawnProjectile(TSubclassOf<AActor> ClassToSpawn);
+
+public:
+	// Sets default values for this character's properties
+	ASCharacter();
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;

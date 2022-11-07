@@ -9,6 +9,8 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "SInteractionComponent.h"
+#include "SAttributeComponent.h"
+
 
 // Sets default values
 ASCharacter::ASCharacter()
@@ -25,42 +27,13 @@ ASCharacter::ASCharacter()
 
 	InteractionComp = CreateDefaultSubobject<USInteractionComponent>(TEXT("InteractionComp"));
 
+	AttributeComp = CreateDefaultSubobject<USAttributeComponent>(TEXT("AttributeComp"));
+
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 
 	bUseControllerRotationYaw = false;
-}
 
-// Called when the game starts or when spawned
-void ASCharacter::BeginPlay()
-{
-	Super::BeginPlay();
-	
-}
-
-// Called every frame
-void ASCharacter::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-
-	// -- Rotation Visualization -- //
-	const float DrawScale = 100.0f;
-	const float Thickness = 5.0f;
-
-	FVector LineStart = GetActorLocation();
-	// Offset to the right of pawn
-	LineStart += GetActorRightVector() * 100.0f;
-	// Set line end in direction of the actor's forward
-	FVector ActorDirection_LineEnd = LineStart + (GetActorForwardVector() * 100.0f);
-	// Draw Actor's Direction
-	DrawDebugDirectionalArrow(GetWorld(), LineStart, ActorDirection_LineEnd, DrawScale, FColor::Yellow, false, 0.0f, 0, Thickness);
-
-	FRotator ControlRot = GetControlRotation();
-	ControlRot.Pitch = 0.0f;
-	ControlRot.Roll = 0.0f;
-	FVector ControllerDirection_LineEnd = LineStart + (ControlRot.Vector() * 100.0f);
-	// Draw 'Controller' Rotation ('PlayerController' that 'possessed' this character)
-	DrawDebugDirectionalArrow(GetWorld(), LineStart, ControllerDirection_LineEnd, DrawScale, FColor::Green, false, 0.0f, 0, Thickness);
+	AttackAnimDelay = 0.169;
 }
 
 // Called to bind functionality to input
@@ -75,6 +48,10 @@ void ASCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
 
 	PlayerInputComponent->BindAction("PrimaryAttack", IE_Pressed, this, &ASCharacter::PrimaryAttack);
+
+	PlayerInputComponent->BindAction("Dash", IE_Pressed, this, &ASCharacter::Dash);
+
+	PlayerInputComponent->BindAction("BlackHole", IE_Pressed, this, &ASCharacter::BlackHole);
 
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
 
@@ -104,49 +81,94 @@ void ASCharacter::PrimaryAttack()
 	PlayAnimMontage(AttackAnim);
 
 	// Lets animation play before spawning projectile
-	GetWorldTimerManager().SetTimer(TimerHandle_PrimaryAttack, this, &ASCharacter::PrimaryAttack_TimeElapsed, 0.169);
+	GetWorldTimerManager().SetTimer(TimerHandle_PrimaryAttack, this, &ASCharacter::PrimaryAttack_TimeElapsed, AttackAnimDelay);
 }
 
 void ASCharacter::PrimaryAttack_TimeElapsed()
 {
-	// Initializes spawn location from hand socket
-	FVector HandLocation = GetMesh()->GetSocketLocation("Muzzle_01");
+	SpawnProjectile(ProjectileClass);
+}
 
-	// Finds intended impact point on camera angle
-	FVector CameraLoc = CameraComp->GetComponentLocation();
-	FVector End = CameraLoc + (CameraComp->GetComponentRotation().Vector() * 50000);
+void ASCharacter::Dash()
+{
+	// Primary attack animation
+	PlayAnimMontage(AttackAnim);
 
-	// Sets what object types hit by line trace
-	FCollisionObjectQueryParams ObjectQueryParams;
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);		// Should probably make custom channel for these
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
+	// Lets animation play before spawning projectile
+	GetWorldTimerManager().SetTimer(TimerHandle_Dash, this, &ASCharacter::Dash_TimeElapsed, AttackAnimDelay);
+}
 
-	FHitResult Hit;
-	FTransform SpawnTM;
-	if (GetWorld()->LineTraceSingleByObjectType(Hit, CameraLoc, End, ObjectQueryParams))
+void ASCharacter::Dash_TimeElapsed()
+{
+	SpawnProjectile(DashProjectileClass);
+}
+
+void ASCharacter::BlackHole()
+{
+	// Primary attack animation
+	PlayAnimMontage(AttackAnim);
+
+	// Lets animation play before spawning projectile
+	GetWorldTimerManager().SetTimer(TimerHandle_BlackHoleAttack, this, &ASCharacter::BlackHole_TimeElapsed, AttackAnimDelay);
+}
+
+void ASCharacter::BlackHole_TimeElapsed()
+{
+	SpawnProjectile(BlackHoleProjectileClass);
+}
+
+void ASCharacter::SpawnProjectile(TSubclassOf<AActor> ClassToSpawn)
+{
+	if (ensureAlways(ClassToSpawn))
 	{
-		// Finds projectile vector based on difference between intended collision & hand location
-		FVector ProjectileVec = Hit.Location - HandLocation;
-		SpawnTM = FTransform(ProjectileVec.Rotation(), HandLocation);
+		// Initializes spawn location from hand socket
+		FVector HandLocation = GetMesh()->GetSocketLocation("Muzzle_01");
 
-		// DEBUG
-		FString CombinedString = FString::Printf(TEXT("Line Trace: %s"), *Hit.ImpactPoint.ToString());
-		DrawDebugString(GetWorld(), Hit.ImpactPoint, CombinedString, nullptr, FColor::Green, 2.0f, true);
+		// Finds intended impact point on camera angle
+		FVector TraceStart = CameraComp->GetComponentLocation();
+		FVector TraceEnd = TraceStart + (CameraComp->GetComponentRotation().Vector() * 10000);	// IDK what max hit distance should be
+
+		// Trace shape
+		FCollisionShape Shape;
+		Shape.SetSphere(20.0f);	// Consider passing as parameter
+
+		// Ignore player
+		FCollisionQueryParams ColParams;
+		ColParams.AddIgnoredActor(this);
+
+		// Sets what object types hit by line trace 
+		FCollisionObjectQueryParams ObjParams;
+		ObjParams.AddObjectTypesToQuery(ECC_WorldStatic);
+		ObjParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+		ObjParams.AddObjectTypesToQuery(ECC_Pawn);
+
+		// Misc.
+		FHitResult Hit;
+		FTransform SpawnTM;
+
+		// On hit finds projectile vector based on difference between intended collision & hand location
+		if (GetWorld()->SweepSingleByObjectType(Hit, TraceStart, TraceEnd, FQuat::Identity, ObjParams, Shape, ColParams))
+		{
+			SpawnTM = FTransform((Hit.Location - HandLocation).Rotation(), HandLocation);
+
+			// DEBUG
+			DrawDebugString(GetWorld(), Hit.ImpactPoint, FString::Printf(TEXT("Line Trace: %s"), *Hit.ImpactPoint.ToString()), nullptr, FColor::Green, 2.0f, true);
+		}
+		else
+		{
+			SpawnTM = FTransform(GetControlRotation(), HandLocation);
+
+			//DEBUG
+			DrawDebugString(GetWorld(), HandLocation, TEXT("NO HIT"), nullptr, FColor::Red, 2.0f, true);
+		}
+
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		SpawnParams.Instigator = this;	// Used in BP to disable collision with this character
+
+		// Spawns projectile
+		GetWorld()->SpawnActor<AActor>(ClassToSpawn, SpawnTM, SpawnParams);
 	}
-	else
-	{
-		SpawnTM = FTransform(GetControlRotation(), HandLocation);
-		DrawDebugString(GetWorld(), HandLocation, TEXT("NO HIT"), nullptr, FColor::Red, 2.0f, true);
-	}
-
-	// Initializes spawn parameters
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	SpawnParams.Instigator = this;	// Used in BP to disable collision with this character
-
-	// Spawns projectile
-	GetWorld()->SpawnActor<AActor>(ProjectileClass, SpawnTM, SpawnParams);
 }
 
 void ASCharacter::PrimaryInteract()

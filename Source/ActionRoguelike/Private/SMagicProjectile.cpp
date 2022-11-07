@@ -4,41 +4,35 @@
 #include "SMagicProjectile.h"
 
 #include "Components/SphereComponent.h"
-#include "GameFramework/ProjectileMovementComponent.h"
-#include "Particles/ParticleSystemComponent.h"
+#include "SAttributeComponent.h"
 
 // Sets default values
 ASMagicProjectile::ASMagicProjectile()
 {
-	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
+	SphereComp->SetSphereRadius(20.0f);
 
-	SphereComp = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComp"));
-	SphereComp->SetCollisionProfileName(TEXT("Projectile"));
-	SphereComp->SetSphereRadius(10.0);
-	RootComponent = SphereComp;
-
-	EffectComp = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("EffectComp"));
-	EffectComp->SetupAttachment(SphereComp);
-
-	MovementComp = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("MovementComp"));
-	MovementComp->InitialSpeed = 2000.0f;
-	MovementComp->bRotationFollowsVelocity = true;
-	MovementComp->bInitialVelocityInLocalSpace = true;
-
+	DamageAmount = 20.0f;
 }
 
-// Called when the game starts or when spawned
-void ASMagicProjectile::BeginPlay()
+void ASMagicProjectile::PostInitializeComponents()
 {
-	Super::BeginPlay();
-	
+	Super::PostInitializeComponents();
+
+	SphereComp->OnComponentBeginOverlap.AddDynamic(this, &ASMagicProjectile::OnActorOverlap);
 }
 
-// Called every frame
-void ASMagicProjectile::Tick(float DeltaTime)
+void ASMagicProjectile::OnActorOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	Super::Tick(DeltaTime);
+	if (OtherActor && OtherActor != GetInstigator())
+	{
+		USAttributeComponent* AttributeComp = Cast<USAttributeComponent>(OtherActor->GetComponentByClass(USAttributeComponent::StaticClass()));
+		if (AttributeComp)
+		{
+			AttributeComp->ApplyHealthChange(-20.0f);
 
+			Destroy();
+		}
+	}
 }
+
 
