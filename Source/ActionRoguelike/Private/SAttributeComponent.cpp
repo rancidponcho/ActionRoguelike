@@ -17,3 +17,9 @@ bool USAttributeComponent::ApplyHealthChange(float Delta)
 
 	return true;
 }
+
+
+bool USAttributeComponent::IsAlive() const
+{
+	return Health > 0.0f;
+}

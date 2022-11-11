@@ -11,6 +11,9 @@
 #include "SInteractionComponent.h"
 #include "SAttributeComponent.h"
 
+#include "Math/UnrealMathUtility.h"
+#include "CoreFwd.h"
+
 
 // Sets default values
 ASCharacter::ASCharacter()
@@ -21,19 +24,42 @@ ASCharacter::ASCharacter()
 	SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComp"));
 	SpringArmComp->SetupAttachment(RootComponent);
 	SpringArmComp->bUsePawnControlRotation = true;
+	SpringArmComp->bDoCollisionTest = false;
+	SpringArmComp->TargetArmLength = 250.f;
 
 	CameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComp"));
 	CameraComp->SetupAttachment(SpringArmComp);
+	CameraComp->FieldOfView = 75.f;
 
 	InteractionComp = CreateDefaultSubobject<USInteractionComponent>(TEXT("InteractionComp"));
 
 	AttributeComp = CreateDefaultSubobject<USAttributeComponent>(TEXT("AttributeComp"));
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
-
 	bUseControllerRotationYaw = false;
 
 	AttackAnimDelay = 0.169;
+}
+
+void ASCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+
+	AttributeComp->OnHealthChanged.AddDynamic(this, &ASCharacter::OnHealthChanged);
+}
+
+void ASCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	/* --- Reticle placement --- */
+	FVector Vel = GetVelocity();
+	FRotator Rot = CameraComp->GetComponentRotation();
+	Vel = Rot.UnrotateVector(Vel);
+	float TargetY;
+	float InterpSpeed = 2.f;
+	(Vel.Y > 5.0f || Vel.Y < -5.0f) ? TargetY = Vel.Y * 0.25f : TargetY = 75.f * ((SpringArmComp->SocketOffset.Y > 0.f) - (SpringArmComp->SocketOffset.Y < 0.f));
+	SpringArmComp->SocketOffset.Y = FMath::FInterpTo(SpringArmComp->SocketOffset.Y, TargetY, GetWorld()->GetDeltaSeconds(), InterpSpeed);
 }
 
 // Called to bind functionality to input
@@ -41,21 +67,30 @@ void ASCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	PlayerInputComponent->BindAxis("MoveForward", this, &ASCharacter::MoveForward);
-	PlayerInputComponent->BindAxis("MoveRight", this, &ASCharacter::MoveRight);
+	/* --- Player --- */
+	PlayerInputComponent->BindAction("PrimaryInteract", IE_Pressed, this, &ASCharacter::PrimaryInteract);
 
 	PlayerInputComponent->BindAxis("Turn", this, &APawn::AddControllerYawInput);
 	PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
 
-	PlayerInputComponent->BindAction("PrimaryAttack", IE_Pressed, this, &ASCharacter::PrimaryAttack);
-
-	PlayerInputComponent->BindAction("Dash", IE_Pressed, this, &ASCharacter::Dash);
-
-	PlayerInputComponent->BindAction("BlackHole", IE_Pressed, this, &ASCharacter::BlackHole);
-
+	PlayerInputComponent->BindAxis("MoveForward", this, &ASCharacter::MoveForward);
+	PlayerInputComponent->BindAxis("MoveRight", this, &ASCharacter::MoveRight);
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
 
-	PlayerInputComponent->BindAction("PrimaryInteract", IE_Pressed, this, &ASCharacter::PrimaryInteract);
+	PlayerInputComponent->BindAction("PrimaryAttack", IE_Pressed, this, &ASCharacter::PrimaryAttack);
+	PlayerInputComponent->BindAction("Dash", IE_Pressed, this, &ASCharacter::Dash);
+	PlayerInputComponent->BindAction("BlackHole", IE_Pressed, this, &ASCharacter::BlackHole);
+
+	/* ----------// Designer Tools //---------- */
+}
+
+void ASCharacter::OnHealthChanged(AActor* InstigatorActor, USAttributeComponent* OwningComp, float NewHealth, float Delta)
+{
+	if (NewHealth <= 0.0f && Delta < 0.0f)
+	{
+		APlayerController* PC = Cast<APlayerController>(GetController());
+		DisableInput(PC);
+	}
 }
 
 void ASCharacter::MoveForward(float Value)
@@ -73,6 +108,13 @@ void ASCharacter::MoveRight(float Value)
 	ControlRot.Roll = 0.0f;
 	FVector RightVector = FRotationMatrix(ControlRot).GetScaledAxis(EAxis::Y);
 	AddMovementInput(RightVector, Value);
+}
+
+void ASCharacter::PrimaryInteract()
+{
+	if (InteractionComp) {
+		InteractionComp->PrimaryInteract();
+	}
 }
 
 void ASCharacter::PrimaryAttack()
@@ -126,11 +168,11 @@ void ASCharacter::SpawnProjectile(TSubclassOf<AActor> ClassToSpawn)
 
 		// Finds intended impact point on camera angle
 		FVector TraceStart = CameraComp->GetComponentLocation();
-		FVector TraceEnd = TraceStart + (CameraComp->GetComponentRotation().Vector() * 10000);	// IDK what max hit distance should be
+		FVector TraceEnd = TraceStart + (CameraComp->GetComponentRotation().Vector() * 50000);	// IDK what max hit distance should be
 
 		// Trace shape
 		FCollisionShape Shape;
-		Shape.SetSphere(20.0f);	// Consider passing as parameter
+		// Shape.SetSphere(20.0f);	// For sweep. Consider passing radius as parameter
 
 		// Ignore player
 		FCollisionQueryParams ColParams;
@@ -147,7 +189,7 @@ void ASCharacter::SpawnProjectile(TSubclassOf<AActor> ClassToSpawn)
 		FTransform SpawnTM;
 
 		// On hit finds projectile vector based on difference between intended collision & hand location
-		if (GetWorld()->SweepSingleByObjectType(Hit, TraceStart, TraceEnd, FQuat::Identity, ObjParams, Shape, ColParams))
+		if (GetWorld()->SweepSingleByObjectType(Hit, TraceStart, TraceEnd, FQuat::Identity, ObjParams, Shape, ColParams))		// sweep: GetWorld()->SweepSingleByObjectType(Hit, TraceStart, TraceEnd, FQuat::Identity, ObjParams, Shape, ColParams) trace: GetWorld()->LineTraceSingleByObjectType(Hit, TraceStart, TraceEnd, ObjParams, ColParams)
 		{
 			SpawnTM = FTransform((Hit.Location - HandLocation).Rotation(), HandLocation);
 
@@ -171,9 +213,4 @@ void ASCharacter::SpawnProjectile(TSubclassOf<AActor> ClassToSpawn)
 	}
 }
 
-void ASCharacter::PrimaryInteract()
-{
-	if (InteractionComp) {
-		InteractionComp->PrimaryInteract();
-	}
-}
+/* ----------// Designer Tools //---------- */

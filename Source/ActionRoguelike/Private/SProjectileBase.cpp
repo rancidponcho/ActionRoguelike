@@ -45,7 +45,7 @@ void ASProjectileBase::OnActorHit(UPrimitiveComponent* HitComponent, AActor* Oth
 void ASProjectileBase::Explode_Implementation()
 {
 	// Make sure object isn't being 'destroyed'
-	if(ensure(!IsValid(this)))
+	if(!IsValid(this))
 	{
 		UGameplayStatics::SpawnEmitterAtLocation(this, ImpactVFX, GetActorLocation(), GetActorRotation());
 
