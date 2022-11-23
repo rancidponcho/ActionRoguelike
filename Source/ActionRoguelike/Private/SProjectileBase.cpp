@@ -3,10 +3,14 @@
 
 #include "SProjectileBase.h"
 
+#include "Components/AudioComponent.h"
 #include "Components/SphereComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/AudioComponent.h"
+#include "Sound/SoundCue.h"
+#include "Camera/CameraShakeBase.h"
 
 
 // Sets default values
@@ -25,7 +29,11 @@ ASProjectileBase::ASProjectileBase()
 	EffectComp = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("EffectComp"));
 	EffectComp->SetupAttachment(RootComponent);
 
-	ImpactVFX = CreateDefaultSubobject<UParticleSystem>(TEXT("ImpactVFX"));
+	AudioComp = CreateDefaultSubobject<UAudioComponent>(TEXT("AudioComp"));
+	AudioComp->SetupAttachment(RootComponent);
+	
+	ImpactShakeInnerRadius = 250.0f;
+	ImpactShakeOuterRadius = 2500.0f;
 }
 
 // Implement bindings here
@@ -45,9 +53,13 @@ void ASProjectileBase::OnActorHit(UPrimitiveComponent* HitComponent, AActor* Oth
 void ASProjectileBase::Explode_Implementation()
 {
 	// Make sure object isn't being 'destroyed'
-	if(!IsValid(this))
+	if(ensure(!IsPendingKill()))
 	{
 		UGameplayStatics::SpawnEmitterAtLocation(this, ImpactVFX, GetActorLocation(), GetActorRotation());
+		
+		UGameplayStatics::PlaySoundAtLocation(this, ImpactSound, GetActorLocation());
+
+		UGameplayStatics::PlayWorldCameraShake(this, ImpactShake, GetActorLocation(), ImpactShakeInnerRadius, ImpactShakeOuterRadius);
 
 		Destroy();
 	}

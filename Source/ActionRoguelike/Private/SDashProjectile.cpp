@@ -9,7 +9,7 @@
 ASDashProjectile::ASDashProjectile()
 {
 	TeleportDelay = 0.2f;
-	DetonateDelay = 0.2f;
+	DetonateDelay = 1.0f;
 }
 
 void ASDashProjectile::BeginPlay()

@@ -18,7 +18,7 @@ public:
 
 protected:
 
-	virtual void PostInitializeComponents() override;
+	/*virtual void PostInitializeComponents() override;*/
 
 	UPROPERTY(EditDefaultsOnly, Category = "Damage")
 	float HealthChange;

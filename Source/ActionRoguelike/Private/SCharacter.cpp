@@ -194,14 +194,14 @@ void ASCharacter::SpawnProjectile(TSubclassOf<AActor> ClassToSpawn)
 			SpawnTM = FTransform((Hit.Location - HandLocation).Rotation(), HandLocation);
 
 			// DEBUG
-			DrawDebugString(GetWorld(), Hit.ImpactPoint, FString::Printf(TEXT("Line Trace: %s"), *Hit.ImpactPoint.ToString()), nullptr, FColor::Green, 2.0f, true);
+			// DrawDebugString(GetWorld(), Hit.ImpactPoint, FString::Printf(TEXT("Line Trace: %s"), *Hit.ImpactPoint.ToString()), nullptr, FColor::Green, 2.0f, true);
 		}
 		else
 		{
 			SpawnTM = FTransform(GetControlRotation(), HandLocation);
 
 			//DEBUG
-			DrawDebugString(GetWorld(), HandLocation, TEXT("NO HIT"), nullptr, FColor::Red, 2.0f, true);
+			// DrawDebugString(GetWorld(), HandLocation, TEXT("NO HIT"), nullptr, FColor::Red, 2.0f, true);
 		}
 
 		FActorSpawnParameters SpawnParams;
